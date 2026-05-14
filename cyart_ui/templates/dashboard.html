@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Threat Intelligence Dashboard{% endblock %}
+
+{% block content %}
+<!-- Top Stats from real data - filled by JS -->
+<div class="stats-row" id="top-stats">
+    <div class="stat-card"><div class="stat-icon" style="color:var(--rose)"><i class="fas fa-crosshairs"></i></div><div class="stat-value" id="s-yara">—</div><div class="stat-label">YARA Detections</div></div>
+    <div class="stat-card"><div class="stat-icon" style="color:var(--amber)"><i class="fas fa-triangle-exclamation"></i></div><div class="stat-value" id="s-incidents">—</div><div class="stat-label">Correlated Incidents</div></div>
+    <div class="stat-card"><div class="stat-icon" style="color:var(--cyan)"><i class="fas fa-server"></i></div><div class="stat-value" id="s-hosts">—</div><div class="stat-label">Compromised Hosts</div></div>
+    <div class="stat-card"><div class="stat-icon" style="color:var(--emerald)"><i class="fas fa-shield-halved"></i></div><div class="stat-value" id="s-risk">—</div><div class="stat-label">Threat Level</div></div>
+</div>
+
+<!-- Row 1: Severity + IOC Types -->
+<div class="charts-row">
+    <div class="chart-card">
+        <h3><i class="fas fa-chart-pie"></i> Incident Severity Distribution</h3>
+        <canvas id="severityPie"></canvas>
+    </div>
+    <div class="chart-card">
+        <h3><i class="fas fa-chart-pie"></i> IOC Type Breakdown</h3>
+        <canvas id="iocTypePie"></canvas>
+    </div>
+</div>
+
+<!-- Row 2: YARA Categories + MITRE -->
+<div class="charts-row">
+    <div class="chart-card">
+        <h3><i class="fas fa-chart-bar"></i> YARA Detection Categories</h3>
+        <canvas id="yaraCatBar"></canvas>
+    </div>
+    <div class="chart-card">
+        <h3><i class="fas fa-crosshairs"></i> MITRE ATT&CK Techniques</h3>
+        <canvas id="mitreBar"></canvas>
+    </div>
+</div>
+
+<!-- Row 3: Host Infection + Attack Timeline -->
+<div class="charts-row">
+    <div class="chart-card">
+        <h3><i class="fas fa-server"></i> Host Infection Scores</h3>
+        <canvas id="hostBar"></canvas>
+    </div>
+    <div class="chart-card">
+        <h3><i class="fas fa-timeline"></i> Attack Score Timeline</h3>
+        <canvas id="timelineBar"></canvas>
+    </div>
+</div>
+
+<!-- Row 4: Key Findings Tables -->
+<div class="charts-row">
+    <!-- High Severity Incidents Table -->
+    <div class="panel" style="margin-bottom:0">
+        <div class="panel-header"><h3><i class="fas fa-circle-exclamation"></i> High Severity Incidents</h3></div>
+        <div class="table-wrap"><table id="incidentTable">
+            <thead><tr><th>Source</th><th>Destination</th><th>Service</th><th>Score</th><th>Severity</th></tr></thead>
+            <tbody><tr><td colspan="5" style="text-align:center;color:var(--text-dim)">Loading...</td></tr></tbody>
+        </table></div>
+    </div>
+    <!-- Top YARA Hits -->
+    <div class="panel" style="margin-bottom:0">
+        <div class="panel-header"><h3><i class="fas fa-bug"></i> Top YARA Detections</h3></div>
+        <div id="topYaraList" style="max-height:320px;overflow-y:auto"></div>
+    </div>
+</div>
+
+<!-- Row 5: Attack Narrative -->
+<div class="panel" style="margin-top:1rem">
+    <div class="panel-header"><h3><i class="fas fa-book-open"></i> Attack Narrative Summary</h3></div>
+    <div id="attackNarrative" style="font-size:.88rem;line-height:1.8;color:var(--text-secondary)">Loading...</div>
+</div>
+
+<!-- Pipeline Stats -->
+<div class="panel" style="margin-top:1rem">
+    <div class="panel-header"><h3><i class="fas fa-gauge"></i> Pipeline Statistics</h3></div>
+    <div class="stats-row" id="pipeStats"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const C = {
+    rose:'#f43f5e', amber:'#f59e0b', cyan:'#06b6d4', emerald:'#10b981',
+    violet:'#8b5cf6', primary:'#6366f1',
+    roseA:'rgba(244,63,94,.4)', amberA:'rgba(245,158,11,.4)', cyanA:'rgba(6,182,212,.4)',
+    emeraldA:'rgba(16,185,129,.4)', violetA:'rgba(139,92,246,.4)', primaryA:'rgba(99,102,241,.4)'
+};
+const chartOpts = (legend=false) => ({
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:legend,position:'bottom',labels:{color:'#94a3b8',padding:12,font:{family:'Inter',size:11}}}},
+    scales:{x:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#64748b'},grid:{color:'rgba(255,255,255,.03)'}}}
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // Find the best run (most incidents/timeline events)
+    const runsResp = await fetch('/api/netforensicx/runs');
+    const runs = await runsResp.json();
+    if (!runs.length) return;
+
+    let bestRun = runs[0].name;
+    let bestScore = 0;
+    for (const run of runs) {
+        try {
+            const incR = await fetch(`/api/netforensicx/run/${run.name}/incidents_correlated.json`);
+            const inc = await incR.json();
+            const score = (inc.total_high||0) + (inc.total_medium||0);
+            if (score > bestScore) { bestScore = score; bestRun = run.name; }
+        } catch(e) {}
+    }
+    const base = `/api/netforensicx/run/${bestRun}`;
+
+        // Attack Story - formatted as readable narrative
+        fetch(base+'/attack_story.txt').then(r=>r.json()).then(d => {
+            const raw = d.content || '';
+            // Parse into readable HTML paragraphs
+            const lines = raw.split('\n').filter(l => l.trim());
+            let html = '';
+            lines.forEach(line => {
+                const t = line.trim();
+                if (!t) return;
+                if (t.startsWith('===') || t.startsWith('---')) return;
+                if (t.includes('VERDICT:')) html += `<div style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);border-radius:8px;padding:.8rem 1rem;margin:.8rem 0;font-weight:600;color:#fca5a5"><i class="fas fa-triangle-exclamation"></i> ${t}</div>`;
+                else if (t.includes('ATTACK STORY') || t.includes('HOST BREAKDOWN') || t.includes('TIMELINE')) html += `<h4 style="color:var(--cyan);margin:1.2rem 0 .5rem;font-size:.95rem"><i class="fas fa-caret-right"></i> ${t.replace(/[🔒🚨📊⏱️🖥️]/g,'').trim()}</h4>`;
+                else if (t.startsWith('•') || t.startsWith('-') || t.startsWith('→')) html += `<div style="padding:.2rem 0 .2rem 1rem;border-left:2px solid var(--border)">${t}</div>`;
+                else if (t.match(/^\d+\./)) html += `<div style="padding:.3rem 0;font-weight:500">${t}</div>`;
+                else html += `<p style="margin:.3rem 0">${t}</p>`;
+            });
+            document.getElementById('attackNarrative').innerHTML = html || '<p style="color:var(--text-dim)">No narrative available</p>';
+        });
+
+        // Timeline
+        fetch(base+'/attack_timeline.json').then(r=>r.json()).then(events => {
+            new Chart(document.getElementById('timelineBar'),{type:'bar',data:{
+                labels:events.map(e=>'T+'+e.timestamp.toFixed(1)+'s'),
+                datasets:[{label:'Score',data:events.map(e=>e.score),
+                    backgroundColor:events.map(e=>e.score>500?C.roseA:C.cyanA),
+                    borderColor:events.map(e=>e.score>500?C.rose:C.cyan),borderWidth:1,borderRadius:4}]
+            },options:chartOpts()});
+        });
+
+        // Incidents
+        fetch(base+'/incidents_correlated.json').then(r=>r.json()).then(d => {
+            const high = d.total_high||0, med = d.total_medium||0;
+            document.getElementById('s-incidents').textContent = high + med;
+
+            new Chart(document.getElementById('severityPie'),{type:'doughnut',data:{
+                labels:['High Severity','Medium Severity'],
+                datasets:[{data:[high,med],backgroundColor:[C.roseA,C.amberA],borderColor:[C.rose,C.amber],borderWidth:1}]
+            },options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#94a3b8'}}}}});
+
+            // Incident table
+            const all = [...(d.high_severity||[]),...(d.medium_severity||[])].slice(0,8);
+            document.querySelector('#incidentTable tbody').innerHTML = all.map(i => `
+                <tr>
+                    <td>${i.orig_h}:${i.orig_p}</td>
+                    <td>${i.resp_h}:${i.resp_p}</td>
+                    <td>${i.service||'—'}</td>
+                    <td><strong>${i.score}</strong></td>
+                    <td><span class="badge sev-${i.severity.toLowerCase()}">${i.severity}</span></td>
+                </tr>
+            `).join('') || '<tr><td colspan="5" style="color:var(--text-dim)">No incidents</td></tr>';
+        });
+
+        // Host Profiles
+        fetch(base+'/host_profiles.json').then(r=>r.json()).then(d => {
+            const hosts = Object.values(d);
+            document.getElementById('s-hosts').textContent = hosts.filter(h=>h.infection_score>0).length;
+            new Chart(document.getElementById('hostBar'),{type:'bar',data:{
+                labels:hosts.map(h=>h.hostname||h.ip),
+                datasets:[{label:'Infection Score',data:hosts.map(h=>h.infection_score),
+                    backgroundColor:hosts.map(h=>h.infection_score>200?C.roseA:C.amberA),
+                    borderColor:hosts.map(h=>h.infection_score>200?C.rose:C.amber),borderWidth:1,borderRadius:6}]
+            },options:{...chartOpts(),indexAxis:'y'}});
+        });
+
+        // Run Stats
+        fetch(base+'/run_stats.json').then(r=>r.json()).then(s => {
+            document.getElementById('pipeStats').innerHTML = [
+                {l:'Raw IOCs',v:s.raw_ioc_count||0,i:'database',c:'primary'},
+                {l:'Output IOCs',v:s.output_count||0,i:'filter',c:'emerald'},
+                {l:'YARA Hits',v:s.yara_hits||0,i:'crosshairs',c:'rose'},
+                {l:'Files Scanned',v:s.scanned_files||0,i:'file-lines',c:'cyan'},
+                {l:'Deduplication',v:s.dropped_dedup||0,i:'broom',c:'amber'},
+                {l:'Runtime',v:(s.wall_time_seconds||0).toFixed(1)+'s',i:'stopwatch',c:'violet'}
+            ].map(x=>`<div class="stat-card"><div class="stat-icon" style="color:var(--${x.c})"><i class="fas fa-${x.i}"></i></div><div class="stat-value">${x.v}</div><div class="stat-label">${x.l}</div></div>`).join('');
+        });
+
+    // Load Malware data
+    fetch('/api/malware/report/validation_report.json').then(r=>r.json()).then(d => {
+        const hits = d.yara_hits||[];
+        document.getElementById('s-yara').textContent = hits.length;
+
+        // Risk level from hit severity
+        const critCount = hits.filter(h=>(h.meta||{}).severity==='critical').length;
+        const highCount = hits.filter(h=>(h.meta||{}).severity==='high').length;
+        const risk = critCount>0?'CRITICAL':highCount>3?'HIGH':highCount>0?'MEDIUM':'LOW';
+        const riskEl = document.getElementById('s-risk');
+        riskEl.textContent = risk;
+        riskEl.style.fontSize = '1.2rem';
+        riskEl.style.color = risk==='CRITICAL'?C.rose:risk==='HIGH'?C.amber:risk==='MEDIUM'?C.primary:C.emerald;
+
+        // YARA Categories Bar
+        const cats = {};
+        hits.forEach(h=>{const c=(h.meta||{}).category||'unknown';cats[c]=(cats[c]||0)+1});
+        new Chart(document.getElementById('yaraCatBar'),{type:'bar',data:{
+            labels:Object.keys(cats),
+            datasets:[{label:'Hits',data:Object.values(cats),backgroundColor:C.violetA,borderColor:C.violet,borderWidth:1,borderRadius:4}]
+        },options:chartOpts()});
+
+        // MITRE Bar
+        const mitre = {};
+        hits.forEach(h=>{const t=(h.meta||{}).mitre_attack||'N/A';mitre[t]=(mitre[t]||0)+1});
+        const sorted = Object.entries(mitre).sort((a,b)=>b[1]-a[1]).slice(0,8);
+        new Chart(document.getElementById('mitreBar'),{type:'bar',data:{
+            labels:sorted.map(s=>s[0]),
+            datasets:[{label:'Hits',data:sorted.map(s=>s[1]),backgroundColor:C.roseA,borderColor:C.rose,borderWidth:1,borderRadius:4}]
+        },options:{...chartOpts(),indexAxis:'y'}});
+
+        // Top YARA list
+        const topHits = hits.slice(0,6);
+        document.getElementById('topYaraList').innerHTML = topHits.map(h=>{
+            const m=h.meta||{},s=(m.severity||'unknown').toLowerCase();
+            return `<div class="yara-hit"><div class="yara-name">${h.rule} <span class="badge sev-${s}">${(m.severity||'').toUpperCase()}</span></div><div class="yara-desc">${m.description||''}</div><div class="yara-tags"><span><i class="fas fa-tag"></i> ${m.category||'—'}</span><span><i class="fas fa-crosshairs"></i> ${m.mitre_attack||'—'}</span></div></div>`;
+        }).join('') || '<p style="color:var(--text-dim)">No YARA hits</p>';
+    });
+
+    // IOC report
+    fetch('/api/malware/report/ioc_master_report.json').then(r=>r.json()).then(d => {
+        const t = d.total_iocs||{};
+        new Chart(document.getElementById('iocTypePie'),{type:'doughnut',data:{
+            labels:['IPs','Domains','URLs','Emails','APIs','High-Risk APIs'],
+            datasets:[{data:[t.ips||0,t.domains_extracted||0,t.urls||0,t.emails||0,t.apis||0,t.high_risk_apis||0],
+                backgroundColor:[C.primaryA,C.cyanA,C.emeraldA,C.amberA,C.violetA,C.roseA],
+                borderColor:[C.primary,C.cyan,C.emerald,C.amber,C.violet,C.rose],borderWidth:1}]
+        },options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#94a3b8'}}}}});
+    }).catch(()=>{});
+});
+</script>
+{% endblock %}

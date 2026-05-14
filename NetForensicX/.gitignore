@@ -1,0 +1,13 @@
+*.json
+*.log
+env/
+*.pcap
+__pychache_
+extracted_payloads/
+frontend/
+api/
+*.yml
+processed/
+phase2_output/
+*.pdf
+docs/Research/*

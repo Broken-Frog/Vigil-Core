@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}Network Forensics{% endblock %}
+{% block page_title %}NetForensicX — Network Forensics{% endblock %}
+
+{% block content %}
+<!-- Upload -->
+<div class="panel">
+    <div class="panel-header"><h3><i class="fas fa-upload"></i> Upload PCAP File</h3></div>
+    <form method="POST" enctype="multipart/form-data" id="upload-form">
+        <div class="upload-zone" id="drop-zone">
+            <input type="file" name="file" id="file-input" accept=".pcap,.pcapng" required>
+            <div class="upload-icon"><i class="fas fa-cloud-arrow-up"></i></div>
+            <h4>Drag & Drop PCAP File</h4>
+            <p>or click to browse — .pcap, .pcapng</p>
+            <div id="file-name-display" style="font-weight:600;color:var(--cyan);margin-top:.5rem"></div>
+        </div>
+        <button type="submit" class="btn btn-block" id="submit-btn" style="display:none"><i class="fas fa-rocket"></i> Start Analysis</button>
+    </form>
+</div>
+
+<!-- Pipeline -->
+<div class="pipeline">
+    <div class="pipe-step"><div class="pipe-num">Phase 1</div><div class="pipe-name">Extraction</div></div>
+    <div class="pipe-step"><div class="pipe-num">Phase 2</div><div class="pipe-name">IOC Enrichment</div></div>
+    <div class="pipe-step"><div class="pipe-num">Phase 3</div><div class="pipe-name">Correlation</div></div>
+    <div class="pipe-step"><div class="pipe-num">Output</div><div class="pipe-name">Artifacts</div></div>
+</div>
+
+<!-- Output Artifacts -->
+<div class="panel" style="margin-top:1rem">
+    <div class="panel-header">
+        <h3><i class="fas fa-folder-open"></i> Output Artifacts</h3>
+        <select id="run-sel" class="btn btn-outline btn-sm" onchange="loadRun(this.value)" style="min-width:220px">
+            <option value="">— Select Run —</option>
+        </select>
+    </div>
+
+    <div id="run-content" style="display:none">
+        <div class="tabs" id="ntabs">
+            <button class="tab-btn active" data-t="t-story">Attack Story</button>
+            <button class="tab-btn" data-t="t-timeline">Timeline</button>
+            <button class="tab-btn" data-t="t-incidents">Incidents</button>
+            <button class="tab-btn" data-t="t-hosts">Hosts</button>
+            <button class="tab-btn" data-t="t-stats">Run Stats</button>
+            <button class="tab-btn" data-t="t-manifest">Manifest</button>
+            <button class="tab-btn" data-t="t-log">Pipeline Log</button>
+        </div>
+        <div class="tab-pane active" id="t-story"><div id="out-story" style="font-size:.88rem;line-height:1.8;color:var(--text-secondary);max-height:500px;overflow-y:auto">Loading...</div></div>
+        <div class="tab-pane" id="t-timeline">
+            <div class="charts-row"><div class="chart-card"><h3><i class="fas fa-timeline"></i> Attack Score Timeline</h3><canvas id="tlChart" height="240"></canvas></div></div>
+            <div class="attack-timeline" id="tl-list" style="margin-top:1rem"></div>
+        </div>
+        <div class="tab-pane" id="t-incidents">
+            <div class="charts-row"><div class="chart-card"><h3><i class="fas fa-chart-pie"></i> Severity</h3><canvas id="sevPie"></canvas></div><div class="chart-card"><h3><i class="fas fa-chart-bar"></i> Incident Scores</h3><canvas id="incBar"></canvas></div></div>
+            <div class="table-wrap" style="margin-top:1rem"><table id="inc-table"><thead><tr><th>Session</th><th>Source</th><th>Dest</th><th>Service</th><th>Score</th><th>Severity</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="tab-pane" id="t-hosts">
+            <div class="charts-row"><div class="chart-card"><h3><i class="fas fa-server"></i> Host Infection Scores</h3><canvas id="hostBar"></canvas></div></div>
+            <div class="artifact-grid" id="host-cards" style="margin-top:1rem"></div>
+        </div>
+        <div class="tab-pane" id="t-stats"><div class="stats-row" id="stats-grid"></div><div class="charts-row"><div class="chart-card"><h3><i class="fas fa-chart-pie"></i> IOC Breakdown</h3><canvas id="iocPie"></canvas></div></div></div>
+        <div class="tab-pane" id="t-manifest"><div class="console" id="out-manifest">Loading...</div></div>
+        <div class="tab-pane" id="t-log"><div class="console" id="out-log">Loading...</div></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+    fetch('/api/netforensicx/runs').then(r=>r.json()).then(runs=>{
+        const s=document.getElementById('run-sel');
+        runs.forEach(r=>{const o=document.createElement('option');o.value=r.name;o.textContent=r.name;s.appendChild(o)});
+        if(runs.length){s.value=runs[0].name;loadRun(runs[0].name)}
+    });
+    document.querySelectorAll('#ntabs .tab-btn').forEach(b=>b.addEventListener('click',()=>{
+        document.querySelectorAll('#ntabs .tab-btn').forEach(x=>x.classList.remove('active'));
+        document.querySelectorAll('#run-content .tab-pane').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');document.getElementById(b.dataset.t).classList.add('active');
+    }));
+});
+function loadRun(n){
+    if(!n)return;document.getElementById('run-content').style.display='block';
+    const base=`/api/netforensicx/run/${n}`;
+    fetch(base+'/attack_story.txt').then(r=>r.json()).then(d=>{
+        const raw=d.content||'';
+        const lines=raw.split('\n');
+        let html='';
+        lines.forEach(l=>{
+            const t=l.trim();
+            if(!t||t.match(/^[=\-]{3,}$/))return;
+            if(t.includes('VERDICT:'))html+=`<div style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);border-radius:8px;padding:.8rem 1rem;margin:.8rem 0;font-weight:600;color:#fca5a5"><i class="fas fa-triangle-exclamation"></i> ${t}</div>`;
+            else if(t.includes('ATTACK STORY')||t.includes('HOST BREAKDOWN')||t.includes('TIMELINE')||t.includes('SUMMARY'))html+=`<h4 style="color:var(--cyan);margin:1.2rem 0 .5rem;font-size:.95rem"><i class="fas fa-caret-right"></i> ${t.replace(/[🔒🚨📊⏱️🖥️]/g,'').trim()}</h4>`;
+            else if(t.startsWith('•')||t.startsWith('-')||t.startsWith('→'))html+=`<div style="padding:.2rem 0 .2rem 1rem;border-left:2px solid var(--border)">${t}</div>`;
+            else html+=`<p style="margin:.3rem 0">${t}</p>`;
+        });
+        document.getElementById('out-story').innerHTML=html||'<p style="color:var(--text-dim)">No data</p>';
+    }).catch(()=>{});
+    fetch(base+'/attack_timeline.json').then(r=>r.json()).then(d=>renderTL(d)).catch(()=>{});
+    fetch(base+'/incidents_correlated.json').then(r=>r.json()).then(d=>renderInc(d)).catch(()=>{});
+    fetch(base+'/host_profiles.json').then(r=>r.json()).then(d=>renderHosts(d)).catch(()=>{});
+    fetch(base+'/run_stats.json').then(r=>r.json()).then(d=>renderStats(d)).catch(()=>{});
+    fetch(base+'/manifest.json').then(r=>r.json()).then(d=>{document.getElementById('out-manifest').textContent=JSON.stringify(d,null,2)}).catch(()=>{});
+    fetch(base+'/pipeline.log').then(r=>r.json()).then(d=>{document.getElementById('out-log').textContent=d.content||'No data'}).catch(()=>{});
+}
+function _destroy(id){const c=Chart.getChart(id);if(c)c.destroy();}
+function renderTL(ev){
+    _destroy('tlChart');
+    new Chart(document.getElementById('tlChart'),{type:'bar',data:{labels:ev.map(e=>'T+'+e.timestamp.toFixed(1)+'s'),datasets:[{label:'Score',data:ev.map(e=>e.score),backgroundColor:ev.map(e=>e.score>500?'rgba(244,63,94,.4)':'rgba(6,182,212,.4)'),borderColor:ev.map(e=>e.score>500?'#f43f5e':'#06b6d4'),borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#64748b'},grid:{color:'rgba(255,255,255,.03)'}}}}});
+    document.getElementById('tl-list').innerHTML=ev.map(e=>`<div class="tl-entry"><div class="tl-time">T+${e.timestamp.toFixed(2)}s</div><div class="tl-title">${e.action} <span class="badge sev-${e.score>500?'critical':'high'}" style="font-size:.7rem">${e.score} pts</span></div><div class="tl-sub">${e.source} → ${e.destination} (${e.protocol})</div></div>`).join('');
+}
+function renderInc(d){
+    const all=[...(d.high_severity||[]),...(d.medium_severity||[])];
+    _destroy('sevPie');_destroy('incBar');
+    new Chart(document.getElementById('sevPie'),{type:'doughnut',data:{labels:['High','Medium'],datasets:[{data:[d.total_high||0,d.total_medium||0],backgroundColor:['rgba(244,63,94,.6)','rgba(245,158,11,.6)'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#94a3b8'}}}}});
+    new Chart(document.getElementById('incBar'),{type:'bar',data:{labels:all.map(i=>i.uid.substring(0,10)),datasets:[{label:'Score',data:all.map(i=>i.score),backgroundColor:all.map(i=>i.severity==='HIGH'?'rgba(244,63,94,.35)':'rgba(245,158,11,.35)'),borderColor:all.map(i=>i.severity==='HIGH'?'#f43f5e':'#f59e0b'),borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b',font:{size:9}},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#64748b'},grid:{color:'rgba(255,255,255,.03)'}}}}});
+    document.querySelector('#inc-table tbody').innerHTML=all.map(i=>`<tr><td style="font-family:'JetBrains Mono';font-size:.75rem">${i.uid}</td><td>${i.orig_h}:${i.orig_p}</td><td>${i.resp_h}:${i.resp_p}</td><td>${i.service||'-'}</td><td><strong>${i.score}</strong></td><td><span class="badge sev-${i.severity.toLowerCase()}">${i.severity}</span></td></tr>`).join('');
+}
+function renderHosts(d){
+    const h=Object.values(d);_destroy('hostBar');
+    new Chart(document.getElementById('hostBar'),{type:'bar',data:{labels:h.map(x=>x.hostname||x.ip),datasets:[{label:'Score',data:h.map(x=>x.infection_score),backgroundColor:'rgba(244,63,94,.35)',borderColor:'#f43f5e',borderWidth:1,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#94a3b8'},grid:{color:'rgba(255,255,255,.03)'}}}}});
+    document.getElementById('host-cards').innerHTML=h.map(x=>`<div class="artifact-item"><i class="fas fa-server"></i><h4>${x.hostname||'Unknown'} (${x.ip})</h4><p>Score: ${x.infection_score} · Files: ${(x.files||[]).length} · Intel: ${(x.intel_hits||[]).length}</p></div>`).join('');
+}
+function renderStats(s){
+    const items=[{l:'Raw IOCs',v:s.raw_ioc_count||0,i:'database'},{l:'Output IOCs',v:s.output_count||0,i:'filter'},{l:'YARA Hits',v:s.yara_hits||0,i:'crosshairs'},{l:'Files Scanned',v:s.scanned_files||0,i:'file-lines'},{l:'Deduped',v:s.dropped_dedup||0,i:'broom'},{l:'Wall Time',v:(s.wall_time_seconds||0).toFixed(1)+'s',i:'stopwatch'}];
+    document.getElementById('stats-grid').innerHTML=items.map(i=>`<div class="stat-card"><div class="stat-icon" style="color:var(--primary-light)"><i class="fas fa-${i.i}"></i></div><div class="stat-value">${i.v}</div><div class="stat-label">${i.l}</div></div>`).join('');
+    _destroy('iocPie');
+    new Chart(document.getElementById('iocPie'),{type:'doughnut',data:{labels:['IPs','Domains','File Hashes','YARA'],datasets:[{data:[s.iocs_with_ip||0,s.iocs_with_domain||0,s.iocs_with_file_hash||0,s.iocs_with_yara_match||0],backgroundColor:['rgba(99,102,241,.6)','rgba(6,182,212,.6)','rgba(245,158,11,.6)','rgba(244,63,94,.6)'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#94a3b8'}}}}});
+}
+</script>
+{% endblock %}

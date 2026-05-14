@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}History{% endblock %}
+{% block page_title %}Analysis History{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header"><h3><i class="fas fa-clock-rotate-left"></i> All Analyses</h3></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>ID</th><th>File</th><th>Type</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for h in histories %}
+                <tr>
+                    <td>#{{ h.id }}</td>
+                    <td>{{ h.file_name }}</td>
+                    <td style="text-transform:capitalize">{{ h.analysis_type }}</td>
+                    <td>{{ h.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td><span class="badge status-{{ h.status }}" id="status-{{ h.id }}">{{ h.status }}</span></td>
+                    <td>
+                        {% if h.analysis_type == 'network' %}
+                        <a href="{{ url_for('network') }}" class="btn btn-sm btn-outline" style="border-color: var(--cyan); color: var(--cyan);"><i class="fas fa-chart-bar"></i> View Report</a>
+                        {% else %}
+                        <a href="{{ url_for('malware') }}" class="btn btn-sm btn-outline" style="border-color: var(--rose); color: var(--rose);"><i class="fas fa-chart-bar"></i> View Report</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align:center;color:var(--text-dim)">No history found</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

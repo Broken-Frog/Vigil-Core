@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.env
+
+# React / Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VigilCore Specific (Logs & Reports)
+logs/
+platform_logs/
+reports/
+extracted/
+samples/
+uploads/
+quarantined/
+pcap_storage/
+datasets/feeds/*.cache
+datasets/feeds/*.pkl
+
+# Databases
+cyart_ui/instance/app.db
+*.sqlite3
+*.db
+
+# Large Forensic Artifacts
+*.pcap
+*.pcapng
+*.mddramimage
+*.raw
+*.mem
+*.bin
+*.vmem
+
+# Threat Intel Cache
+threat_intel_cache.json
+domain_reputation_report.json
+
+# IDE / OS Files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~

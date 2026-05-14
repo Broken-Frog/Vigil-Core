@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyart Forensics - {% block title %}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <div class="app-shell">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo"><i class="fas fa-shield-halved"></i></div>
+                <div class="brand-text">
+                    <span class="brand-name">CYART</span>
+                    <span class="brand-sub">Forensics Platform</span>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section-label">MAIN</div>
+                <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="fas fa-chart-pie"></i><span>Dashboard</span>
+                </a>
+                <div class="nav-section-label">ANALYSIS</div>
+                <a href="{{ url_for('network') }}" class="nav-item {% if request.endpoint == 'network' %}active{% endif %}">
+                    <i class="fas fa-network-wired"></i><span>NetForensicX</span>
+                </a>
+                <a href="{{ url_for('malware') }}" class="nav-item {% if request.endpoint == 'malware' %}active{% endif %}">
+                    <i class="fas fa-bug"></i><span>Malware Analysis</span>
+                </a>
+                <div class="nav-section-label">RECORDS</div>
+                <a href="{{ url_for('history') }}" class="nav-item {% if request.endpoint == 'history' %}active{% endif %}">
+                    <i class="fas fa-clock-rotate-left"></i><span>History</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-card" onclick="window.location.href='{{ url_for('profile') }}'" style="cursor: pointer;">
+                    <div class="user-avatar">{{ current_user.username[0] | upper }}</div>
+                    <div class="user-details">
+                        <span class="user-name">{{ current_user.username }}</span>
+                        <span class="user-role">Investigator</span>
+                    </div>
+                    <a href="{{ url_for('logout') }}" onclick="event.stopPropagation();" class="user-logout" title="Logout"><i class="fas fa-right-from-bracket"></i></a>
+                </div>
+            </div>
+        </aside>
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="top-bar-left">
+                    <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+                </div>
+                <div class="top-bar-right">
+                    <div class="status-indicator online"><i class="fas fa-circle"></i> System Online</div>
+                </div>
+            </header>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-container">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    <i class="fas fa-{% if category == 'error' %}triangle-exclamation{% else %}circle-check{% endif %}"></i>
+                    {{ message }}
+                    <button class="alert-close" onclick="this.parentElement.remove()">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+            <div class="content-body">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+    {% else %}
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <div class="brand-logo large"><i class="fas fa-shield-halved"></i></div>
+                <h1>CYART</h1>
+                <p>Memory & Network Forensics Platform</p>
+            </div>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}" style="margin-bottom:1rem">
+                <i class="fas fa-triangle-exclamation"></i> {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+            {% block auth_content %}{% endblock %}
+        </div>
+    </div>
+    {% endif %}
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

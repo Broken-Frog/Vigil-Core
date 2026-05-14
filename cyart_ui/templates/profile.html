@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}User Profile{% endblock %}
+{% block page_title %}Investigator Profile{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h3><i class="fas fa-user-circle"></i> Profile Information</h3>
+    </div>
+    <div class="profile-card" style="display:flex; align-items:center; gap: 2rem; padding: 1rem;">
+        <div class="user-avatar" style="width: 80px; height: 80px; font-size: 2.5rem; display: flex; align-items: center; justify-content: center; background: var(--primary); color: white; border-radius: 50%;">
+            {{ current_user.username[0] | upper }}
+        </div>
+        <div class="profile-details">
+            <h2 style="margin-bottom: 0.5rem; color: var(--text-bright);">{{ current_user.username }}</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 0.25rem;"><i class="fas fa-envelope"></i> {{ current_user.email }}</p>
+            <p style="color: var(--text-dim); font-size: 0.9rem;"><i class="fas fa-shield-halved"></i> Investigator</p>
+        </div>
+    </div>
+</div>
+
+<div class="panel" style="margin-top: 2rem;">
+    <div class="panel-header">
+        <h3><i class="fas fa-chart-line"></i> Activity Summary</h3>
+    </div>
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon" style="color: var(--primary);"><i class="fas fa-file-shield"></i></div>
+            <div class="stat-value">{{ total_count }}</div>
+            <div class="stat-label">Total Scans</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="color: var(--cyan);"><i class="fas fa-network-wired"></i></div>
+            <div class="stat-value">{{ net_count }}</div>
+            <div class="stat-label">Network Analyses</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="color: var(--rose);"><i class="fas fa-bug"></i></div>
+            <div class="stat-value">{{ mal_count }}</div>
+            <div class="stat-label">Malware Scans</div>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 2rem; text-align: right;">
+    <a href="{{ url_for('logout') }}" class="btn btn-outline" style="border-color: var(--rose); color: var(--rose);">
+        <i class="fas fa-right-from-bracket"></i> Logout
+    </a>
+</div>
+{% endblock %}
