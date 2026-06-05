@@ -2,7 +2,7 @@
 
 **VigilCore** is an enterprise-grade, comprehensive cybersecurity analysis platform featuring high-fidelity Network and Malware Forensic pipelines. Designed for Security Operations Centers (SOC) and Incident Response teams, it provides real-time threat detection, advanced telemetry correlation, and professional intelligence-driven dashboards.
 
-## 🚀 Key Features
+## Key Features
 
 ### 1. Malware Forensics Pipeline (CyArt Malware)
 A deeply optimized, multi-stage static and dynamic analysis engine for binaries, scripts, and memory dumps.
@@ -27,7 +27,7 @@ A professionally designed, highly responsive Command Center.
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 * **Frontend**: React.js, Tailwind CSS, Recharts, Vite (Dynamic UI routing and visualization).
 * **Backend**: Python 3, Flask (REST API, Subprocess Management).
 * **Forensic Engines**: YARA, Volatility (Memory extraction), Zeek/Suricata (Network).
@@ -35,7 +35,7 @@ A professionally designed, highly responsive Command Center.
 
 ---
 
-## ⚙️ Installation & Execution Plan
+## Installation & Execution Plan
 
 ### Prerequisites
 1. **Python 3.10+** (with `pip` and `venv`)
@@ -93,7 +93,7 @@ python3 run_platform.py
 
 ---
 
-## 🛡️ Architecture & Data Flow
+## Architecture & Data Flow
 1. **Upload**: React frontend sends multipart-form data to Flask `/api/upload`.
 2. **Orchestration**: `app.py` triggers `run_cyart_malware()` or `run_network_pipeline()` via asynchronous subprocesses, tracking PID and logging progress to SQLite (`instance/app.db`).
 3. **Analysis**: 
@@ -103,5 +103,5 @@ python3 run_platform.py
 
 ---
 
-## 📜 License
+## License
 This is an open-source project released under the **MIT License**. You are free to use, modify, and distribute this software for educational, research, and commercial purposes. Contributions and pull requests are highly encouraged!
