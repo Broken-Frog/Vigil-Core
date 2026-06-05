@@ -59,6 +59,7 @@ A professionally designed, highly responsive Command Center.
    ```bash
    cd frontend
    npm install
+   npm run build
    cd ..
    ```
 4. Verify Redis is active:
